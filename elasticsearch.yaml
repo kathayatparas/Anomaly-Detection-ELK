@@ -1,9 +1,6 @@
-
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'State: Elasticsearch, a cloudonaut.io template, sponsored by https://github.com/ngault'
-
 Parameters:
- 
   DomainName: 'Armour'
     Description: 'A name for the Amazon ES domain.'
     Type: String
@@ -41,7 +38,6 @@ Parameters:
     Description: 'Name that is used to create the DNS entry with trailing dot, e.g. §{SubDomainNameWithDot}§{HostedZoneName}. Leave blank for naked (or apex and bare) domain. Requires ParentZoneStack parameter!'
     Type: String
     Default: 'elasticsearch.'
-
   ElasticsearchDomain:
     Type: 'AWS::Elasticsearch::Domain'
     Properties:
@@ -82,7 +78,6 @@ Parameters:
           - {'Fn::ImportValue': !Sub '${ParentVPCStack}-SubnetBPrivate'}
     UpdatePolicy:
       EnableVersionUpgrade: true
- 
 Outputs:
   TemplateID:
     Description: 'cloudonaut.io template id.'
