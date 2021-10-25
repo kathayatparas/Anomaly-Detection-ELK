@@ -1,100 +1,79 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'State: Elasticsearch, a cloudonaut.io template, sponsored by https://github.com/ngault'
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploy Elasticsearch Domain
 Parameters:
-  DomainName: 'Armour'
-    Description: 'A name for the Amazon ES domain.'
+  InstanceType:
     Type: String
- ElasticsearchVersion: '7.10'
-    Description: 'Elasticsearch version'
+    Default: c4.large.elasticsearch
+
+  DomainName:
     Type: String
-    Default: '5.5'
-    AllowedValues: ['7.10', '7.9', '7.8', '7.7', '7.4', '7.1', '6.8', '6.7', '6.5', '6.4', '6.3', '6.2', '6.0', '5.6', '5.5'] # aws es list-elasticsearch-versions --query "ElasticsearchVersions[]"
-  ClusterInstanceCount:
-    Description: 'The number of data nodes (instances) to use in the Amazon ES domain.'
-    Type: Number
-    Default: 1
-  ClusterInstanceType:
-    Description: 'The instance type for your data nodes.'
-    Type: 'String'
-    Default: 't2.small.elasticsearch'
-  EBSEnabled: true
-    Description: 'Specifies whether Amazon EBS volumes are attached to data nodes in the Amazon ES domain (some instance types come with instance store that you can use instead).'
+    Default: Armour1-es
+
+  MasterUserName:
     Type: String
-    AllowedValues: [true, false]
-    Default: true
-  EBSVolumeSize: 10 
-    Description: 'The size of the EBS volume for each data node. The minimum and maximum size of an EBS volume depends on the EBS volume type and the instance type to which it is attached.'
-    Type: Number
-    Default: 10
-  DedicatedMasterCount: 1
-    Description: 'The number of dedicated master nodes (instances) to use in the Amazon ES domain (set to 0 to disable dedicated master nodes).'
-    Type: Number
-    Default: 0
-  DedicatedMasterType:
-    Description: 'The instance type for your dedicated master nodes.'
-    Type: 'String'
-    Default: 't2.small.elasticsearch'
-  SubDomainNameWithDot:
-    Description: 'Name that is used to create the DNS entry with trailing dot, e.g. §{SubDomainNameWithDot}§{HostedZoneName}. Leave blank for naked (or apex and bare) domain. Requires ParentZoneStack parameter!'
+    Default: admin
+
+  MasterUserPassword:
     Type: String
-    Default: 'elasticsearch.'
-  ElasticsearchDomain:
-    Type: 'AWS::Elasticsearch::Domain'
+    NoEcho: true
+    Default: Asdf123
+
+Resources:
+
+  MyESDomain:
+    Type: AWS::Elasticsearch::Domain
     Properties:
-      AccessPolicies:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            AWS: '*'
-          Action:
-          - 'es:ESHttp*'
-          Resource: !Sub 'arn:aws:es:us-east-1:980136813593:domain/${DomainName}/*'
-      DomainName: !Ref 'DomainName'
-      EBSOptions: !If
-      - HasEBSEnabled
-      - EBSEnabled: true
-        VolumeSize: !Ref EBSVolumeSize
+      DomainName: !Ref DomainName 
+      AccessPolicies: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Action": "es:*",
+              "Resource": "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${DomainName}/*"
+            }
+          ]
+        }
+      AdvancedSecurityOptions:
+          Enabled: true
+          InternalUserDatabaseEnabled: true
+          MasterUserOptions: 
+            MasterUserName: !Ref MasterUserName
+            MasterUserPassword: !Ref MasterUserPassword
+      EncryptionAtRestOptions: 
+        Enabled: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      EBSOptions: 
+        EBSEnabled: true
+        VolumeSize: 20
         VolumeType: gp2
-      - EBSEnabled: false
-      ElasticsearchClusterConfig:
-        DedicatedMasterCount: !If [HasDedicatedMasterNodes, !Ref DedicatedMasterCount, !Ref 'AWS::NoValue']
-        DedicatedMasterEnabled: !If [HasDedicatedMasterNodes, true, false]
-        DedicatedMasterType: !If [HasDedicatedMasterNodes, !Ref DedicatedMasterType, !Ref 'AWS::NoValue']
-        InstanceCount: !Ref ClusterInstanceCount
-        InstanceType: !Ref ClusterInstanceType
-        ZoneAwarenessEnabled: !If [HasSingleClusterInstance, false, true]
-      ElasticsearchVersion: !Ref ElasticsearchVersion
-      EncryptionAtRestOptions: !If [HasKmsKey, {Enabled: true, KmsKeyId: {'Fn::ImportValue': !Sub '${ParentKmsKeyStack}-KeyId'}}, !Ref 'AWS::NoValue']
-      SnapshotOptions:
-        AutomatedSnapshotStartHour: 10
-      VPCOptions:
-        SecurityGroupIds:
-        - !Ref SecurityGroup
-        SubnetIds: !If
-        - HasSingleClusterInstance
-        - - {'Fn::ImportValue': !Sub '${ParentVPCStack}-SubnetAPrivate'}
-        - - {'Fn::ImportValue': !Sub '${ParentVPCStack}-SubnetAPrivate'}
-          - {'Fn::ImportValue': !Sub '${ParentVPCStack}-SubnetBPrivate'}
-    UpdatePolicy:
-      EnableVersionUpgrade: true
+      ElasticsearchClusterConfig: 
+        DedicatedMasterEnabled: false
+        InstanceCount: 1
+        InstanceType: !Ref InstanceType
+        ZoneAwarenessEnabled: false
+      ElasticsearchVersion: 7.10
+
 Outputs:
-  TemplateID:
-    Description: 'cloudonaut.io template id.'
-    Value: 'state/elasticsearch'
-  TemplateVersion:
-    Description: 'cloudonaut.io template version.'
-    Value: '__VERSION__'
-  StackName:
-    Description: 'Stack name.'
-    Value: !Sub '${AWS::StackName}'
-  DNSName:
-    Description: "The domain-specific endpoint that's used to submit index, search, and data upload requests to an Amazon ES domain."
-    Value: !GetAtt 'ElasticsearchDomain.DomainEndpoint'
-    Export:
-      Name: !Sub '${AWS::StackName}-DNSName'
-  SecurityGroupId:
-    Description: 'The security group used to manage access to Elasticsearch.'
-    Value: !Ref SecurityGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-SecurityGroupId'
+  
+  Id:
+    Value: !Ref MyESDomain    
+    
+  Arn:
+    Value: !GetAtt MyESDomain.Arn    
+
+  DomainArn:
+    Value: !GetAtt MyESDomain.DomainArn
+    
+  DomainEndpoint:
+    Value: !GetAtt MyESDomain.DomainEndpoint    
+    
+  KibanaEndpoint:
+    Value: !Sub "${MyESDomain.DomainEndpoint}/_plugin/kibana/"
